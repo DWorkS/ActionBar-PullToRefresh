@@ -36,4 +36,16 @@ public class AbsListViewDelegate extends PullToRefreshAttacher.Delegate {
         }
         return false;
     }
+
+	@Override
+	public boolean isScrolledToBottom(View view) {
+        AbsListView absListView = (AbsListView) view;
+        if (absListView.getCount() == 0) {
+            return true;
+        } else if (absListView.getLastVisiblePosition() == absListView.getAdapter().getCount() - 1) {
+            final View lastVisibleChild = absListView.getChildAt(absListView.getCount() -1);
+            return lastVisibleChild != null && lastVisibleChild.getBottom() <= absListView.getHeight();
+        }
+		return false;
+	}
 }

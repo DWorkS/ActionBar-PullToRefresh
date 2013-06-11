@@ -148,5 +148,10 @@ public class GridViewActivity extends Activity
             mMainTextView.setText(R.string.pull_to_refresh_refreshing_label);
             mProgressTextView.setVisibility(View.GONE);
         }
+
+		@Override
+		public void setTheme(Activity activity, int theme) {
+			// TODO Auto-generated method stub
+		}
     }
 }

@@ -29,4 +29,9 @@ public class ScrollViewDelegate extends PullToRefreshAttacher.Delegate {
     public boolean isScrolledToTop(View view) {
         return view.getScrollY() <= 0;
     }
+
+	@Override
+	public boolean isScrolledToBottom(View view) {
+		return false;
+	}
 }

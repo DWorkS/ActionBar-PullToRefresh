@@ -24,7 +24,7 @@
         android:id="@id/ptr_text"
         android:background="?android:attr/colorBackground"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="?android:attr/actionBarSize"
         android:textSize="18sp"
         android:gravity="center" />
 

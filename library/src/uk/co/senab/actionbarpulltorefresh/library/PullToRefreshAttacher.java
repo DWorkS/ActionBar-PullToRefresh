@@ -18,8 +18,10 @@ package uk.co.senab.actionbarpulltorefresh.library;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.res.Resources;
 import android.graphics.Rect;
 import android.os.Build;
+import android.os.CountDownTimer;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -41,7 +43,8 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
     private static final int DEFAULT_ANIM_HEADER_IN = R.anim.fade_in;
     private static final int DEFAULT_ANIM_HEADER_OUT = R.anim.fade_out;
     private static final float DEFAULT_REFRESH_SCROLL_DISTANCE = 0.5f;
-
+    private static final int DEFAULT_HEADER_THEME = 0;
+    
     private static final boolean DEBUG = false;
     private static final String LOG_TAG = "PullToRefreshAttacher";
 
@@ -89,7 +92,7 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
         // Header Transformer
         mHeaderTransformer = options.headerTransformer != null ? options.headerTransformer
                 : new DefaultHeaderTransformer();
-
+        
         // Create animations for use later
         mHeaderInAnimation = AnimationUtils.loadAnimation(activity, options.headerInAnimation);
         mHeaderOutAnimation = AnimationUtils.loadAnimation(activity, options.headerOutAnimation);
@@ -122,6 +125,7 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
 
         // Notify transformer
         mHeaderTransformer.onViewCreated(mHeaderView);
+        mHeaderTransformer.setTheme(activity, options.headerTheme);
     }
 
     /**
@@ -295,8 +299,8 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
             } else {
                 // As we're not animating, call the header transformer now
                 mHeaderTransformer.onReset();
+                mHeaderView.setVisibility(View.GONE);
             }
-            mHeaderView.setVisibility(View.GONE);
         }
     }
 
@@ -354,6 +358,8 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
          * from {@link OnRefreshListener} but is more suitable for header view updates.
          */
         public abstract void onRefreshStarted();
+        
+        public abstract void setTheme(Activity activity, int theme);
     }
 
     public static abstract class Delegate {
@@ -367,13 +373,15 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
          * @return true if <code>view</code> is scrolled to the top.
          */
         public abstract boolean isScrolledToTop(View view);
+        
+        public abstract boolean isScrolledToBottom(View view);
 
         /**
          * @return Context which should be used for inflating the header layout
          */
         public Context getContextForInflater(Activity activity) {
             if (Build.VERSION.SDK_INT >= 14) {
-                return activity.getActionBar().getThemedContext();
+                return activity.getActionBar() == null ? activity : activity.getActionBar().getThemedContext();
             } else {
                 return activity;
             }
@@ -413,19 +421,25 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
          * is initiated.
          */
         public float refreshScrollDistance = DEFAULT_REFRESH_SCROLL_DISTANCE;
+        
+        /**
+         * The anim resource ID which should be started when the header is being shown.
+         */
+        public int headerTheme = DEFAULT_HEADER_THEME;
     }
 
     private class AnimationCallback implements Animation.AnimationListener {
 
         @Override
         public void onAnimationStart(Animation animation) {
+            if (animation == mHeaderOutAnimation) {
+                mHeaderTransformer.onReset();
+            }
         }
 
         @Override
         public void onAnimationEnd(Animation animation) {
-            if (animation == mHeaderOutAnimation) {
-                mHeaderTransformer.onReset();
-            }
+            mHeaderView.setVisibility(View.GONE);
         }
 
         @Override
@@ -445,7 +459,6 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
             // Get ProgressBar and TextView. Also set initial text on TextView
             mHeaderProgressBar = (ProgressBar) headerView.findViewById(R.id.ptr_progress);
             mHeaderTextView = (TextView) headerView.findViewById(R.id.ptr_text);
-
             // Call onReset to make sure that the View is consistent
             onReset();
         }
@@ -454,8 +467,19 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
         public void onReset() {
             // Reset Progress Bar
             if (mHeaderProgressBar != null) {
-                mHeaderProgressBar.setVisibility(View.GONE);
-                mHeaderProgressBar.setProgress(0);
+				new CountDownTimer(400, 1) {
+
+					public void onTick(long millisUntilFinished) {
+						final int progress = mHeaderProgressBar.getProgress();
+						mHeaderProgressBar
+								.setProgress(progress > 0 ? progress - 1 : 0);
+					}
+
+					public void onFinish() {
+						mHeaderProgressBar.setProgress(0);
+						mHeaderProgressBar.setVisibility(View.GONE);
+					}
+				}.start();
                 mHeaderProgressBar.setIndeterminate(false);
             }
 
@@ -484,6 +508,28 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
                 mHeaderProgressBar.setIndeterminate(true);
             }
         }
+
+		@Override
+		public void setTheme(Activity activity, int theme) {
+			final int mColorWhite = activity.getResources().getColor(android.R.color.white);
+			final int mColorBlack = activity.getResources().getColor(android.R.color.black);
+			final int mTextColor = theme == 0 ? mColorWhite : mColorBlack;
+			final int mTextBackgroundColor = theme == 0 ? mColorBlack : mColorWhite;
+			final int mProgressDrawable = theme == 0 
+					? R.drawable.progress_horizontal_holo_dark 
+					: R.drawable.progress_horizontal_holo_light;
+			final int mIndeterminateDrawable = R.drawable.progress_indeterminate_horizontal;
+			if (mHeaderTextView != null) {
+                mHeaderTextView.setHeight(PullToRefreshAttacher.getActionBarHeight(activity));
+                mHeaderTextView.setBackgroundColor(mTextBackgroundColor);
+                mHeaderTextView.setTextColor(mTextColor);
+            }
+			
+            if (mHeaderProgressBar != null) {
+                mHeaderProgressBar.setProgressDrawable(activity.getResources().getDrawable(mProgressDrawable));
+                mHeaderProgressBar.setIndeterminateDrawable(activity.getResources().getDrawable(mIndeterminateDrawable));
+            }
+		}
     }
 
     /**
@@ -528,4 +574,25 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
         }
     }
 
+	public int getStatusBarHeight(Activity activity) {
+		int result = 0;
+		final int resourceId = activity.getResources().getIdentifier("android:dimen/status_bar_height", null, null);
+		if (resourceId > 0) {
+			result = activity.getResources().getDimensionPixelSize(resourceId);
+		}
+		return result;
+	}
+	
+	private static int getActionBarHeight(Activity activity) {
+		int result = 0;
+		int resourceId = activity.getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+		if (resourceId > 0) {
+			result = activity.getResources().getDimensionPixelSize(resourceId);
+		}
+		resourceId = activity.getResources().getIdentifier("actionBarSize", "attr", null);
+		if (resourceId > 0) {
+			result = activity.getResources().getDimensionPixelSize(resourceId);
+		}
+		return result;
+	}
 }

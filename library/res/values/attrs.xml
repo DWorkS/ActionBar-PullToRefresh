@@ -12,18 +12,22 @@
   ~ distributed under the License is distributed on an "AS IS" BASIS,
   ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   ~ See the License for the specific language governing permissions and
-  ~ limitations under the License.
-  -->
+  ~ limitations under the License.
+-->
 
 <resources>
 
     <declare-styleable name="PullToRefreshLayout">
-        <attr name="headerLayout" format="reference"/>
-        <attr name="headerOutAnimation" format="reference"/>
-        <attr name="headerInAnimation" format="reference"/>
-        <attr name="refreshScrollDistance" format="reference|float"/>
-        <attr name="delegateClass" format="string"/>
-        <attr name="headerTransformerClass" format="string"/>
+        <attr name="headerLayout" format="reference" />
+        <attr name="headerOutAnimation" format="reference" />
+        <attr name="headerInAnimation" format="reference" />
+        <attr name="refreshScrollDistance" format="reference|float" />
+        <attr name="delegateClass" format="string" />
+        <attr name="headerTransformerClass" format="string" />
+        <attr name="headerTheme">
+            <enum name="dark" value="0" />
+            <enum name="light" value="1" />
+        </attr>
     </declare-styleable>
 
 </resources>
