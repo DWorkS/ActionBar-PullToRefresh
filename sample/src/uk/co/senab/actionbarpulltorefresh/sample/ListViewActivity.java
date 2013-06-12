@@ -25,7 +25,6 @@ import android.widget.ListAdapter;
 import android.widget.ListView;
 
 import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher;
-import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher.Options;
 
 /**
  * This sample shows how to use ActionBar-PullToRefresh with a
@@ -60,12 +59,10 @@ public class ListViewActivity extends ListActivity
          * Here we create a PullToRefreshAttacher manually without an Options instance.
          * PullToRefreshAttacher will manually create one using default values.
          */
-        Options options = new Options();
-        options.headerTheme = 1;
-        mPullToRefreshAttacher = new PullToRefreshAttacher(this, getListView(), options);
+        mPullToRefreshAttacher = new PullToRefreshAttacher(this);
 
-        // Set Listener to know when a refresh should be started
-        mPullToRefreshAttacher.setRefreshListener(this);
+        // Set the Refreshable View to be the ListView and the refresh listener to be this.
+        mPullToRefreshAttacher.setRefreshableView(listView, this);
     }
 
     @Override

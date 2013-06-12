@@ -16,10 +16,6 @@
 
 package uk.co.senab.actionbarpulltorefresh.library;
 
-import android.content.Context;
-import android.util.Log;
-import android.view.View;
-
 import java.lang.reflect.Constructor;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,37 +23,42 @@ import java.util.Set;
 
 import uk.co.senab.actionbarpulltorefresh.library.delegate.AbsListViewDelegate;
 import uk.co.senab.actionbarpulltorefresh.library.delegate.ScrollViewDelegate;
+import android.content.Context;
+import android.util.Log;
+import android.view.View;
 
 class InstanceCreationUtils {
 
     private static final String LOG_TAG = "InstanceCreationUtils";
 
-    private static final Class<?>[] DELEGATE_CONSTRUCTOR_SIGNATURE = new Class[]{};
+    private static final Class<?>[] VIEW_DELEGATE_CONSTRUCTOR_SIGNATURE = new Class[]{};
     private static final Class<?>[] TRANSFORMER_CONSTRUCTOR_SIGNATURE = new Class[]{};
 
     private static final HashMap<Class, Class> BUILT_IN_DELEGATES;
 
     static {
         BUILT_IN_DELEGATES = new HashMap<Class, Class>();
-        BUILT_IN_DELEGATES.put(AbsListViewDelegate.SUPPORTED_VIEW_CLASS, AbsListViewDelegate.class);
-        BUILT_IN_DELEGATES.put(ScrollViewDelegate.SUPPORTED_VIEW_CLASS, ScrollViewDelegate.class);
+        BUILT_IN_DELEGATES.put(AbsListViewDelegate.SUPPORTED_VIEW_CLASS,
+                AbsListViewDelegate.class);
+        BUILT_IN_DELEGATES.put(ScrollViewDelegate.SUPPORTED_VIEW_CLASS,
+                ScrollViewDelegate.class);
     }
 
-    static PullToRefreshAttacher.Delegate getBuiltInDelegateForView(final View view) {
+    static PullToRefreshAttacher.ViewDelegate getBuiltInViewDelegate(final View view) {
         final Set<Map.Entry<Class, Class>> entries = BUILT_IN_DELEGATES.entrySet();
         for (final Map.Entry<Class, Class> entry : entries) {
             if (entry.getKey().isInstance(view)) {
                 return InstanceCreationUtils.newInstance(view.getContext(),
-                        entry.getValue(), DELEGATE_CONSTRUCTOR_SIGNATURE, null);
+                        entry.getValue(), VIEW_DELEGATE_CONSTRUCTOR_SIGNATURE, null);
             }
         }
         return null;
     }
 
-    static <T> T instantiateDelegate(Context context, String className, Object[] arguments) {
+    static <T> T instantiateViewDelegate(Context context, String className, Object[] arguments) {
         try {
             Class<?> clazz = context.getClassLoader().loadClass(className);
-            return newInstance(context, clazz, DELEGATE_CONSTRUCTOR_SIGNATURE, arguments);
+            return newInstance(context, clazz, VIEW_DELEGATE_CONSTRUCTOR_SIGNATURE, arguments);
         } catch (Exception e) {
             Log.w(LOG_TAG, "Cannot instantiate class: " + className, e);
         }

@@ -21,7 +21,7 @@ import android.widget.ScrollView;
 
 import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher;
 
-public class ScrollViewDelegate extends PullToRefreshAttacher.Delegate {
+public class ScrollViewDelegate extends PullToRefreshAttacher.ViewDelegate {
 
     public static final Class SUPPORTED_VIEW_CLASS = ScrollView.class;
 
