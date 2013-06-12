@@ -573,19 +573,18 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
             // Reset Progress Bar
             if (mHeaderProgressBar != null) {
 				
-            	final long totalTime = mHeaderProgressBar.getProgress() < 20 ? 1000 : mHeaderProgressBar.getProgress() * 10; 
+            	final int progress = mHeaderProgressBar.getProgress();
+            	final long totalTime = progress < 20 ? (progress == 0 ? 0 : 1000) : progress * 10; 
 				new CountDownTimer(totalTime, 1) {
 
 					public void onTick(long millisUntilFinished) {
 						final int progress = mHeaderProgressBar.getProgress();
-						Log.i("", progress+"");
 						mHeaderProgressBar.incrementProgressBy(-1);
 					}
 
 					public void onFinish() {
 						mHeaderProgressBar.setProgress(0);
 						mHeaderProgressBar.setVisibility(View.GONE);
-						mHeaderView.setVisibility(View.GONE);
 					}
 				}.start();
                 mHeaderProgressBar.setIndeterminate(false);
@@ -624,8 +623,8 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
 			final int mTextColor = theme == 0 ? mColorWhite : mColorBlack;
 			final int mTextBackgroundColor = theme == 0 ? mColorBlack : mColorWhite;
 			final int mProgressDrawable = theme == 0 
-					? R.drawable.progress_horizontal_holo_dark 
-					: R.drawable.progress_horizontal_holo_light;
+					? R.drawable.progress_horizontal_center_dark 
+					: R.drawable.progress_horizontal_center_light;
 			final int mIndeterminateDrawable = R.drawable.progress_indeterminate_horizontal;
 			if (mHeaderTextView != null) {
                 mHeaderTextView.setHeight(PullToRefreshAttacher.getActionBarHeight(activity));
