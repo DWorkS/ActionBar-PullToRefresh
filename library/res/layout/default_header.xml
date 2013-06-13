@@ -13,26 +13,27 @@
   ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
-  -->
+
+-->
 
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+    android:layout_height="wrap_content"
+    android:orientation="vertical" >
 
     <TextView
         android:id="@id/ptr_text"
-        android:background="?android:attr/colorBackground"
         android:layout_width="match_parent"
         android:layout_height="48dp"
-        android:textSize="18sp"
-        android:gravity="center" />
+        android:background="?android:attr/colorBackground"
+        android:gravity="center"
+        android:textSize="18sp" />
 
     <ProgressBar
         android:id="@id/ptr_progress"
-        android:layout_height="wrap_content"
-        android:layout_width="match_parent"
         style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
         android:layout_marginTop="-6dp" />
 
 </LinearLayout>

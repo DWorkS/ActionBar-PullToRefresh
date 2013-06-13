@@ -27,6 +27,7 @@ import android.content.Context;
 import android.util.Log;
 import android.view.View;
 
+@SuppressWarnings("rawtypes")
 class InstanceCreationUtils {
 
     private static final String LOG_TAG = "InstanceCreationUtils";
@@ -34,7 +35,7 @@ class InstanceCreationUtils {
     private static final Class<?>[] VIEW_DELEGATE_CONSTRUCTOR_SIGNATURE = new Class[]{};
     private static final Class<?>[] TRANSFORMER_CONSTRUCTOR_SIGNATURE = new Class[]{};
 
-    private static final HashMap<Class, Class> BUILT_IN_DELEGATES;
+	private static final HashMap<Class, Class> BUILT_IN_DELEGATES;
 
     static {
         BUILT_IN_DELEGATES = new HashMap<Class, Class>();
@@ -75,7 +76,8 @@ class InstanceCreationUtils {
         return null;
     }
 
-    private static <T> T newInstance(Context context, Class clazz, Class[] constructorSig,
+    @SuppressWarnings("unchecked")
+	private static <T> T newInstance(Context context, Class clazz, Class[] constructorSig,
             Object[] arguments) {
         try {
             Constructor<?> constructor = clazz.getConstructor(constructorSig);

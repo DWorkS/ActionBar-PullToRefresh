@@ -16,6 +16,10 @@
 
 package uk.co.senab.actionbarpulltorefresh.sample;
 
+import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher;
+import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshListAttacher;
+import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshListAttacher.ListOptions;
+import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshListAttacher.MODE;
 import android.app.ListActivity;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -24,16 +28,14 @@ import android.widget.ArrayAdapter;
 import android.widget.ListAdapter;
 import android.widget.ListView;
 
-import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher.Options;
-import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher;
-
 /**
  * This sample shows how to use ActionBar-PullToRefresh with a
  * {@link android.widget.ListView ListView}, and manually creating (and attaching) a
  * {@link PullToRefreshAttacher} to the view.
  */
-public class ListViewActivity extends ListActivity
-        implements PullToRefreshAttacher.OnRefreshListener {
+public class ListViewHeaderFooterActivity extends ListActivity
+        implements PullToRefreshListAttacher.OnHeaderRefreshListener,
+        PullToRefreshListAttacher.OnFooterRefreshListener{
 
     private static String[] ITEMS = {
     		"Abbaye de Belloc",
@@ -63,7 +65,7 @@ public class ListViewActivity extends ListActivity
             "Aisy Cendre",
             "Allgauer Emmentaler"};
 
-    private PullToRefreshAttacher mPullToRefreshAttacher;
+    private PullToRefreshListAttacher mPullToRefreshAttacher;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -82,18 +84,21 @@ public class ListViewActivity extends ListActivity
          * PullToRefreshAttacher will manually create one using default values.
          */
         
-        Options options = new Options();
+        ListOptions options = new ListOptions();
        // options.headerLayout = R.layout.default_footer;
         options.headerTheme = 1;
-        mPullToRefreshAttacher = new PullToRefreshAttacher(this, options);
+        options.footerTheme = 1;
+        mPullToRefreshAttacher = new PullToRefreshListAttacher(this, options);
 
         // Set the Refreshable View to be the ListView and the refresh listener to be this.
-        mPullToRefreshAttacher.setRefreshableView(listView, this);
+        mPullToRefreshAttacher.setRefreshableView(listView, MODE.Both);
+        mPullToRefreshAttacher.setHeaderRefreshLister(this);
+        mPullToRefreshAttacher.setFooterRefreshLister(this);
         listView.setAdapter(adapter);
     }
 
     @Override
-    public void onRefreshStarted(View view) {
+    public void onHeaderRefreshStarted(View view) {
         /**
          * Simulate Refresh with 4 seconds sleep
          */
@@ -114,7 +119,35 @@ public class ListViewActivity extends ListActivity
                 super.onPostExecute(result);
 
                 // Notify PullToRefreshAttacher that the refresh has finished
-                mPullToRefreshAttacher.setRefreshComplete();
+                mPullToRefreshAttacher.setHeaderRefreshComplete();
+            }
+        }.execute();
+    }
+    
+
+    @Override
+    public void onFooterRefreshStarted(View view) {
+        /**
+         * Simulate Refresh with 4 seconds sleep
+         */
+        new AsyncTask<Void, Void, Void>() {
+
+            @Override
+            protected Void doInBackground(Void... params) {
+                try {
+                    Thread.sleep(4000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                return null;
+            }
+
+            @Override
+            protected void onPostExecute(Void result) {
+                super.onPostExecute(result);
+
+                // Notify PullToRefreshAttacher that the refresh has finished
+                mPullToRefreshAttacher.setFooterRefreshComplete();
             }
         }.execute();
     }

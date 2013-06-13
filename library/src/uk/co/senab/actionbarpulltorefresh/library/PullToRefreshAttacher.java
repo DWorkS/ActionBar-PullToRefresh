@@ -16,16 +16,12 @@
 
 package uk.co.senab.actionbarpulltorefresh.library;
 
-import java.util.Timer;
-import java.util.TimerTask;
-
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Rect;
 import android.os.AsyncTask;
 import android.os.Build;
-import android.os.CountDownTimer;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -559,13 +555,13 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
     public static class DefaultHeaderTransformer extends HeaderTransformer {
         private TextView mHeaderTextView;
         private ProgressBar mHeaderProgressBar;
-        private View mHeaderView;
+        //private View mHeaderView;
         @Override
         public void onViewCreated(View headerView) {
             // Get ProgressBar and TextView. Also set initial text on TextView
             mHeaderProgressBar = (ProgressBar) headerView.findViewById(R.id.ptr_progress);
             mHeaderTextView = (TextView) headerView.findViewById(R.id.ptr_text);
-            mHeaderView = headerView;
+            //mHeaderView = headerView;
             // Call onReset to make sure that the View is consistent
             onReset();
         }
@@ -576,19 +572,35 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
             if (mHeaderProgressBar != null) {
 				
             	final int progress = mHeaderProgressBar.getProgress();
-            	final long totalTime = progress < 20 ? (progress == 0 ? 0 : 1000) : progress * 10; 
-				new CountDownTimer(totalTime, 1) {
-
-					public void onTick(long millisUntilFinished) {
-						final int progress = mHeaderProgressBar.getProgress();
-						mHeaderProgressBar.incrementProgressBy(-1);
+                new AsyncTask<Void, Void, Void>(){
+                	
+					@Override
+					protected Void doInBackground(Void... params) {
+		            	for (int i = progress; i >= 0; i--) {
+		            		try {
+		            			onProgressUpdate();
+								Thread.sleep(2);
+							} catch (InterruptedException e) {
+								e.printStackTrace();
+							}
+						}
+						return null;
 					}
-
-					public void onFinish() {
+					
+                	@Override
+                	protected void onProgressUpdate(Void... values) {
+	            		mHeaderProgressBar.incrementProgressBy(-1);
+                		super.onProgressUpdate(values);
+                	}
+                	
+                	@Override
+                	protected void onPostExecute(Void result) {
 						mHeaderProgressBar.setProgress(0);
-						mHeaderProgressBar.setVisibility(View.GONE);
-					}
-				}.start();
+						onHide();
+                		super.onPostExecute(result);
+                	}
+                	
+                }.execute();
                 mHeaderProgressBar.setIndeterminate(false);
             }
 

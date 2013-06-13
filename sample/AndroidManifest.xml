@@ -22,7 +22,9 @@
         <activity
             android:name=".ListViewActivity"
             android:label="@string/activity_listview" />
-
+        <activity
+            android:name=".ListViewHeaderFooterActivity"
+            android:label="@string/activity_listview_hf" />
         <activity
             android:name=".ScrollViewActivity"
             android:label="@string/activity_scrollview" />
