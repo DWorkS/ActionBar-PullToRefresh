@@ -151,5 +151,11 @@ public class GridViewActivity extends Activity
 			// TODO Auto-generated method stub
 			
 		}
+
+		@Override
+		public void onHide() {
+			// TODO Auto-generated method stub
+			
+		}
     }
 }

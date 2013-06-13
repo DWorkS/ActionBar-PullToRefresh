@@ -16,15 +16,13 @@
 
 package uk.co.senab.actionbarpulltorefresh.library;
 
-import java.util.Timer;
-import java.util.TimerTask;
-
-import android.annotation.SuppressLint;
+import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher.DefaultHeaderTransformer;
+import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher.EnvironmentDelegate;
+import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher.HeaderTransformer;
+import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher.ViewDelegate;
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Rect;
-import android.os.AsyncTask;
-import android.os.Build;
 import android.os.CountDownTimer;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -35,18 +33,20 @@ import android.view.ViewGroup;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.widget.FrameLayout;
+import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
 /**
  * FIXME
  */
-public final class PullToRefreshAttacher implements View.OnTouchListener {
+public final class PullToRefreshListAttacher implements View.OnTouchListener {
 
     /**
      * Default configuration values
      */
-    private static final int DEFAULT_HEADER_LAYOUT = R.layout.default_header;
+    private static final int DEFAULT_HEADER_LAYOUT = R.layout.default_list_header;
+    private static final int DEFAULT_FOOT_LAYOUT = R.layout.default_list_footer;
     private static final int DEFAULT_ANIM_HEADER_IN = R.anim.fade_in;
     private static final int DEFAULT_ANIM_HEADER_OUT = R.anim.fade_out;
     private static final float DEFAULT_REFRESH_SCROLL_DISTANCE = 0.5f;
@@ -61,6 +61,7 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
     private final EnvironmentDelegate mEnvironmentDelegate;
 
     private final View mHeaderView;
+    private final View mFooterView;
     private final Animation mHeaderInAnimation, mHeaderOutAnimation;
 
     private final int mTouchSlop;
@@ -70,15 +71,23 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
 
     private OnRefreshListener mRefreshListener;
     private final HeaderTransformer mHeaderTransformer;
-
+    private final HeaderTransformer mFooterTransformer;
+    
     private boolean mEnabled = true;
-
+    private ListView list;
+    private MODE mMode, mCurrentMode;
+    
+    public enum MODE{
+    	Header,
+    	Footer,
+    	Both
+    }
     /**
      * FIXME
      * @param activity
      */
-    public PullToRefreshAttacher(Activity activity) {
-        this(activity, new Options());
+    public PullToRefreshListAttacher(Activity activity) {
+        this(activity, new ListOptions());
     }
 
     /**
@@ -86,10 +95,10 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
      * @param activity
      * @param options
      */
-    public PullToRefreshAttacher(Activity activity, Options options) {
+    public PullToRefreshListAttacher(Activity activity, ListOptions options) {
         if (options == null) {
             Log.i(LOG_TAG, "Given null options so using default options.");
-            options = new Options();
+            options = new ListOptions();
         }
 
         // Copy necessary values from options
@@ -104,7 +113,12 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
         mHeaderTransformer = options.headerTransformer != null
                 ? options.headerTransformer
                 : new DefaultHeaderTransformer();
-
+        
+        // Footer Transformer
+        mFooterTransformer = options.footerTransformer != null
+                ? options.footerTransformer
+                : new DefaultHeaderTransformer();
+        
         // Create animations for use later
         mHeaderInAnimation = AnimationUtils.loadAnimation(activity, options.headerInAnimation);
         mHeaderOutAnimation = AnimationUtils.loadAnimation(activity, options.headerOutAnimation);
@@ -120,24 +134,27 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
 
         // Create Header view and then add to Decor View
         mHeaderView = LayoutInflater.from(mEnvironmentDelegate.getContextForInflater(activity))
-                .inflate(options.headerLayout, decorView, false);
+                .inflate(options.headerLayout, null);
         if (mHeaderView == null) {
             throw new IllegalArgumentException("Must supply valid layout id for header.");
         }
         mHeaderView.setVisibility(View.GONE);
-
-        // Create DecorChildLayout which will move all of the system's decor view's children + the
-        // Header View to itself. See DecorChildLayout for more info.
-        DecorChildLayout decorContents = new DecorChildLayout(activity, decorView,
-                mHeaderView);
-
-        // Now add the DecorChildLayout to the decor view
-        decorView.addView(decorContents, ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT);
+        
+        // Create Footer view and then add to Decor View
+        mFooterView = LayoutInflater.from(mEnvironmentDelegate.getContextForInflater(activity))
+                .inflate(options.footerLayout, null);
+        if (mFooterView == null) {
+            throw new IllegalArgumentException("Must supply valid layout id for header.");
+        }
+        mFooterView.setVisibility(View.GONE);
 
         // Notify transformer
         mHeaderTransformer.onViewCreated(mHeaderView);
         mHeaderTransformer.setTheme(activity, options.headerTheme);
+        
+        // Notify transformer
+        mFooterTransformer.onViewCreated(mFooterView);
+        mFooterTransformer.setTheme(activity, options.headerTheme);
     }
 
     /**
@@ -162,10 +179,17 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
      */
     public void setRefreshableView(View view, ViewDelegate viewDelegate,
             OnRefreshListener refreshListener) {
+    	
+    	if(view instanceof ListView){
+    		list = (ListView) view;
+    		list.addHeaderView(mHeaderView);
+    		list.addFooterView(mFooterView);
+    	}
         // If we already have a refreshable view, reset it and our state
         if (mRefreshableView != null) {
             mRefreshableView.setOnTouchListener(null);
-            setRefreshingInt(false, false);
+            setRefreshingHeaderInt(false, false);
+            setRefreshingFooterInt(false, false);
         }
 
         // Update Refresh Listener
@@ -198,7 +222,9 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
      * @param refreshing - Whether the attacher should be in a refreshing state,
      */
     public final void setRefreshing(boolean refreshing) {
-        setRefreshingInt(refreshing, false);
+        //setRefreshingInt(refreshing, false);
+        setRefreshingHeaderInt(refreshing, false);
+        setRefreshingFooterInt(refreshing, false);
     }
 
     /**
@@ -230,7 +256,8 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
 
             // If we're currently refreshing, reset the ptr UI
             if (mIsRefreshing) {
-                reset(false);
+                resetHeader(false);
+                resetFooter(false);
             }
         }
     }
@@ -242,7 +269,9 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
      * This is the equivalent of calling <code>setRefreshing(false)</code>.
      */
     public final void setRefreshComplete() {
-        setRefreshingInt(false, false);
+        //setRefreshingInt(false, false);
+        setRefreshingHeaderInt(false, false);
+        setRefreshingFooterInt(false, false);
     }
 
     @Override
@@ -258,6 +287,7 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
 
         switch (event.getAction()) {
             case MotionEvent.ACTION_MOVE: {
+            	//Log.i("foot", "move "+mIsRefreshing+!mIsHandlingTouchEvent);
                 // If we're already refreshing or not handling the event, ignore it
                 if (mIsRefreshing || !mIsHandlingTouchEvent) {
                     return false;
@@ -265,19 +295,80 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
 
                 final float y = event.getY();
 
-                // We're not currently being dragged so check to see if the user has scrolled enough
+                if(null != mCurrentMode){
+                	switch (mCurrentMode) {
+					case Header:
+						//Log.i("head", mInitialMotionY+"::"+y+" ;;"+(y - mInitialMotionY)+"::"+mTouchSlop);
+		                // We're not currently being dragged so check to see if the user has scrolled enough
+		                if (!mIsBeingDragged && (y - mInitialMotionY) > mTouchSlop) {
+		                    mIsBeingDragged = true;
+		                    onPullStartedHeader();
+		                }
+		                if (mIsBeingDragged) {
+		                    final float yDx = y - mLastMotionY;
+
+		                    /**
+		                     * Check to see if the user is scrolling the right direction (down).
+		                     * We allow a small scroll up which is the check against negative touch slop.
+		                     */
+		                    //Log.i("head",yDx+"");
+		                    if (yDx >= -mTouchSlop) {
+		                    	//Log.i("head pull",y+"");
+		                        onPullHeader(y);
+		                        // Only record the y motion if the user has scrolled down.
+		                        if (yDx > 0f) {
+		                            mLastMotionY = y;
+		                        }
+		                    } else {
+		                        resetTouch();
+		                    }
+		                }
+						break;
+					case Footer:
+						//Log.i("foot", mInitialMotionY+"::"+y+" ;;"+(mInitialMotionY - y)+"::"+mTouchSlop);
+						
+		                // We're not currently being dragged so check to see if the user has scrolled enough
+		                if (!mIsBeingDragged && (mInitialMotionY - y) > mTouchSlop) {
+		                    mIsBeingDragged = true;
+		                    onPullStartedFooter();
+		                }
+		                if (mIsBeingDragged) {
+		                    final float yDx = mInitialMotionY - y;
+
+		                    /**
+		                     * Check to see if the user is scrolling the right direction (down).
+		                     * We allow a small scroll up which is the check against negative touch slop.
+		                     */
+		                    //Log.i("foot",yDx+"");
+		                    if (yDx >= -mTouchSlop) {
+		                    	//Log.i("foot pull",y+"");
+		                        onPullFooter(y);
+		                        // Only record the y motion if the user has scrolled down.
+		                        if (yDx > 0f) {
+		                            mLastMotionY = y;
+		                        }
+		                    } else {
+		                        resetTouch();
+		                    }
+		                }
+						break;
+					default:
+						break;
+					}
+                }
+/*                // We're not currently being dragged so check to see if the user has scrolled enough
                 if (!mIsBeingDragged && (y - mInitialMotionY) > mTouchSlop) {
                     mIsBeingDragged = true;
                     onPullStarted();
-                }
+                }*/
 
-                if (mIsBeingDragged) {
+/*                if (mIsBeingDragged) {
                     final float yDx = y - mLastMotionY;
 
-                    /**
+                    *//**
                      * Check to see if the user is scrolling the right direction (down).
                      * We allow a small scroll up which is the check against negative touch slop.
-                     */
+                     *//*
                     if (yDx >= -mTouchSlop) {
                         onPull(y);
                         // Only record the y motion if the user has scrolled down.
@@ -287,24 +378,49 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
                     } else {
                         resetTouch();
                     }
-                }
+                }*/
                 break;
             }
 
             case MotionEvent.ACTION_DOWN: {
                 // If we're already refreshing, ignore
-                if (canRefresh(true) && mViewDelegate.isScrolledToTop(mRefreshableView)) {
-                    mIsHandlingTouchEvent = true;
-                    mInitialMotionY = event.getY();
+                if (canRefresh(true)) {
+                	if(mViewDelegate.isScrolledToTop(mRefreshableView)){
+                        mIsHandlingTouchEvent = true;
+                        mCurrentMode = MODE.Header;
+                        mInitialMotionY = event.getY();
+                        Log.i("foot", "down header");
+                	}
+                	else if(mViewDelegate.isScrolledToBottom(mRefreshableView)){
+                        mIsHandlingTouchEvent = true;
+                        mCurrentMode = MODE.Footer;
+                        mInitialMotionY = event.getY();
+                        Log.i("foot", "down footer");
+                	}
+
                 }
                 break;
             }
 
             case MotionEvent.ACTION_CANCEL:
-            case MotionEvent.ACTION_UP: {
-                resetTouch();
-                break;
+            case MotionEvent.ACTION_UP:{
+            	resetTouch();
+            	break;
             }
+/*            case MotionEvent.ACTION_UP:  {
+                // If we're already refreshing, ignore
+                if (canRefresh(true) && mViewDelegate.isScrolledToBottom(mRefreshableView)) {
+                    mIsHandlingTouchEvent = true;
+                    mCurrentMode = MODE.Footer;
+                    mInitialMotionY = event.getY();
+                    Log.i("foot", "up true");
+                }
+                else{
+                	Log.i("foot", "up false");
+                	resetTouch();
+                }
+                break;
+            }*/
         }
 
         // Always return false as we only want to observe events
@@ -315,13 +431,14 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
         if (mIsBeingDragged) {
             // We were being dragged, but not any more.
             mIsBeingDragged = false;
-            onPullEnded();
+            onPullHeaderEnded();
+            onPullFooterEnded();
         }
         mIsHandlingTouchEvent = false;
         mInitialMotionY = mLastMotionY = 0f;
     }
-
-    void onPullStarted() {
+    
+    void onPullStartedHeader() {
         if (DEBUG) {
             Log.d(LOG_TAG, "onPullStarted");
         }
@@ -331,8 +448,67 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
         }
         mHeaderView.setVisibility(View.VISIBLE);
     }
+    
+    void onPullStartedFooter() {
+        if (DEBUG) {
+            Log.d(LOG_TAG, "onPullStarted");
+        }
+        
+        // Show Footer
+        if (mHeaderInAnimation != null) {
+            mFooterView.startAnimation(mHeaderInAnimation);
+        }
+        mFooterView.setVisibility(View.VISIBLE);
+    }
 
-    void onPull(float y) {
+/*    void onPullStarted() {
+        if (DEBUG) {
+            Log.d(LOG_TAG, "onPullStarted");
+        }
+        // Show Header
+        if (mHeaderInAnimation != null) {
+            mHeaderView.startAnimation(mHeaderInAnimation);
+        }
+        mHeaderView.setVisibility(View.VISIBLE);
+        
+        // Show Header
+        if (mHeaderInAnimation != null) {
+            mFooterView.startAnimation(mHeaderInAnimation);
+        }
+        mFooterView.setVisibility(View.VISIBLE);
+    }*/
+    
+    void onPullHeader(float y) {
+        if (DEBUG) {
+            Log.d(LOG_TAG, "onPull");
+        }
+
+        final float pxScrollForRefresh = mRefreshableView.getHeight() * mRefreshScrollDistance;
+        final float scrollLength = y - mInitialMotionY;
+        Log.i("header", scrollLength+"::"+pxScrollForRefresh);
+        if (scrollLength < pxScrollForRefresh) {
+            mHeaderTransformer.onPulled(scrollLength / pxScrollForRefresh);
+        } else {
+            setRefreshingHeaderInt(true, true);
+        }
+    }
+    
+    void onPullFooter(float y) {
+        if (DEBUG) {
+            Log.d(LOG_TAG, "onPull");
+        }
+
+        final float pxScrollForRefresh = mRefreshableView.getHeight() * mRefreshScrollDistance;
+        final float scrollLength = mInitialMotionY - y;
+        Log.i("footer", scrollLength+"::"+pxScrollForRefresh);
+        if (scrollLength < pxScrollForRefresh) {
+            mFooterTransformer.onPulled(scrollLength / pxScrollForRefresh);
+        } else {
+            setRefreshingFooterInt(true, true);
+        }
+    }
+
+    /*void onPull(float y) {
         if (DEBUG) {
             Log.d(LOG_TAG, "onPull");
         }
@@ -345,18 +521,68 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
         } else {
             setRefreshingInt(true, true);
         }
+    }*/
+    
+    void onPullHeaderEnded() {
+        if (DEBUG) {
+            Log.d(LOG_TAG, "onPullEnded");
+        }
+        if (!mIsRefreshing) {
+            resetHeader(true);
+        }
+    }
+    
+    void onPullFooterEnded() {
+        if (DEBUG) {
+            Log.d(LOG_TAG, "onPullEnded");
+        }
+        if (!mIsRefreshing) {
+            resetFooter(true);
+        }
     }
 
-    void onPullEnded() {
+    /*void onPullEnded() {
         if (DEBUG) {
             Log.d(LOG_TAG, "onPullEnded");
         }
         if (!mIsRefreshing) {
             reset(true);
         }
+    }*/
+    
+    private void setRefreshingHeaderInt(boolean refreshing, boolean fromTouch) {
+        if (DEBUG) {
+            Log.d(LOG_TAG, "setRefreshingInt: " + refreshing);
+        }
+        // Check to see if we need to do anything
+        if (mIsRefreshing == refreshing) {
+            return;
+        }
+
+        if (refreshing && canRefresh(fromTouch)) {
+            startRefreshHeader(fromTouch);
+        } else {
+            resetHeader(fromTouch);
+        }
+    }
+    
+    private void setRefreshingFooterInt(boolean refreshing, boolean fromTouch) {
+        if (DEBUG) {
+            Log.d(LOG_TAG, "setRefreshingInt: " + refreshing);
+        }
+        // Check to see if we need to do anything
+        if (mIsRefreshing == refreshing) {
+            return;
+        }
+
+        if (refreshing && canRefresh(fromTouch)) {
+            startRefreshFooter(fromTouch);
+        } else {
+            resetFooter(fromTouch);
+        }
     }
 
-    private void setRefreshingInt(boolean refreshing, boolean fromTouch) {
+    /*private void setRefreshingInt(boolean refreshing, boolean fromTouch) {
         if (DEBUG) {
             Log.d(LOG_TAG, "setRefreshingInt: " + refreshing);
         }
@@ -370,13 +596,13 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
         } else {
             reset(fromTouch);
         }
-    }
+    }*/
 
     private boolean canRefresh(boolean fromTouch) {
         return !mIsRefreshing && (!fromTouch || mRefreshListener != null);
     }
-
-    private void reset(boolean fromTouch) {
+    
+    private void resetHeader(boolean fromTouch) {
         // Update isRefreshing state
         mIsRefreshing = false;
 
@@ -392,8 +618,42 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
             }
         }
     }
+    
+    private void resetFooter(boolean fromTouch) {
+        // Update isRefreshing state
+        mIsRefreshing = false;
 
-    private void startRefresh(boolean fromTouch) {
+        if (mFooterView.getVisibility() != View.GONE) {
+            // Hide Header
+            if (mHeaderOutAnimation != null) {
+            	mFooterView.startAnimation(mHeaderOutAnimation);
+                // HeaderTransformer.onReset() is called once the animation has finished
+            } else {
+                // As we're not animating, hide the header + call the header transformer now
+                mFooterView.setVisibility(View.GONE);
+                mFooterTransformer.onReset();
+            }
+        }
+    }
+
+    /*private void reset(boolean fromTouch) {
+        // Update isRefreshing state
+        mIsRefreshing = false;
+
+        if (mHeaderView.getVisibility() != View.GONE) {
+            // Hide Header
+            if (mHeaderOutAnimation != null) {
+                mHeaderView.startAnimation(mHeaderOutAnimation);
+                // HeaderTransformer.onReset() is called once the animation has finished
+            } else {
+                // As we're not animating, hide the header + call the header transformer now
+                mHeaderView.setVisibility(View.GONE);
+                mHeaderTransformer.onReset();
+            }
+        }
+    }*/
+    
+    private void startRefreshHeader(boolean fromTouch) {
         // Update isRefreshing state
         mIsRefreshing = true;
 
@@ -410,6 +670,42 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
             mHeaderView.setVisibility(View.VISIBLE);
         }
     }
+    
+    private void startRefreshFooter(boolean fromTouch) {
+        // Update isRefreshing state
+        mIsRefreshing = true;
+
+        // Call OnRefreshListener if this call has originated from a touch event
+        if (fromTouch) {
+            mRefreshListener.onRefreshStarted(mRefreshableView);
+        }
+        // Call Transformer
+        mFooterTransformer.onRefreshStarted();
+
+        // Make sure header is visible.
+        // TODO Use header in anim
+        if (mFooterView.getVisibility() != View.VISIBLE) {
+            mFooterView.setVisibility(View.VISIBLE);
+        }
+    }
+
+    /*private void startRefresh(boolean fromTouch) {
+        // Update isRefreshing state
+        mIsRefreshing = true;
+
+        // Call OnRefreshListener if this call has originated from a touch event
+        if (fromTouch) {
+            mRefreshListener.onRefreshStarted(mRefreshableView);
+        }
+        // Call Transformer
+        mHeaderTransformer.onRefreshStarted();
+
+        // Make sure header is visible.
+        // TODO Use header in anim
+        if (mHeaderView.getVisibility() != View.VISIBLE) {
+            mHeaderView.setVisibility(View.VISIBLE);
+        }
+    }*/
 
     /**
      * Simple Listener to listen for any callbacks to Refresh.
@@ -422,77 +718,7 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
         public void onRefreshStarted(View view);
     }
 
-    public static abstract class HeaderTransformer {
-        /**
-         * Called whether the header view has been inflated from the resources defined in
-         * {@link Options#headerLayout}.
-         *
-         * @param headerView - inflated header view.
-         */
-        public abstract void onViewCreated(View headerView);
-
-        /**
-         * Called when the header should be reset. You should update any child views to reflect this.
-         * <p/>
-         * You should <strong>not</strong> change the
-         * visibility of the header view.
-         */
-        public abstract void onReset();
-
-        /**
-         * Called the user has pulled on the scrollable view.
-         * @param  percentagePulled - value between 0.0f and 1.0f depending on how far the user has pulled.
-         */
-        public abstract void onPulled(float percentagePulled);
-
-        /**
-         * Called when a refresh has begun. Theoretically this call is similar to that provided
-         * from {@link OnRefreshListener} but is more suitable for header view updates.
-         */
-        public abstract void onRefreshStarted();
-        
-        public abstract void setTheme(Activity activity, int theme);
-        
-        public abstract void onHide();
-    }
-
-    /**
-     * FIXME
-     */
-    public static abstract class ViewDelegate {
-
-        /**
-         * Allows you to provide support for View which do not have built-in support. In this
-         * method you should cast <code>view</code> to it's native class, and check if it is
-         * scrolled to the top.
-         *
-         * @param view The view which has should be checked against.
-         * @return true if <code>view</code> is scrolled to the top.
-         */
-        public abstract boolean isScrolledToTop(View view);
-        
-        public abstract boolean isScrolledToBottom(View view);
-    }
-
-    /**
-     * FIXME
-     */
-    public static class EnvironmentDelegate {
-
-        /**
-         * @return Context which should be used for inflating the header layout
-         */
-        @SuppressLint("NewApi") 
-        public Context getContextForInflater(Activity activity) {
-            if (Build.VERSION.SDK_INT >= 14) {
-                return null != activity.getActionBar() ? activity.getActionBar().getThemedContext() : activity;
-            } else {
-                return activity;
-            }
-        }
-    }
-
-    public static final class Options {
+    public static final class ListOptions {
         /**
          * EnvironmentDelegate instance which will be used. If null, we will create an instance of
          * the default class.
@@ -503,6 +729,11 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
          * The layout resource ID which should be inflated to be displayed above the Action Bar
          */
         public int headerLayout = DEFAULT_HEADER_LAYOUT;
+        
+        /**
+         * The layout resource ID which should be inflated to be displayed above the Action Bar
+         */
+        public int footerLayout = DEFAULT_FOOT_LAYOUT;
 
         /**
          * The header transformer to be used to transfer the header view. If null, an instance of
@@ -510,6 +741,12 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
          */
         public HeaderTransformer headerTransformer = null;
 
+        /**
+         * The header transformer to be used to transfer the header view. If null, an instance of
+         * {@link DefaultHeaderTransformer} will be used.
+         */
+        public HeaderTransformer footerTransformer = null;
+        
         /**
          * The anim resource ID which should be started when the header is being hidden.
          */
@@ -531,13 +768,14 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
          */
         public int headerTheme = DEFAULT_HEADER_THEME;
     }
-
+    
     private class AnimationCallback implements Animation.AnimationListener {
 
         @Override
         public void onAnimationStart(Animation animation) {
             if (animation == mHeaderOutAnimation) {
                 mHeaderTransformer.onReset();
+                mFooterTransformer.onReset();
             }
         }
 
@@ -545,6 +783,7 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
         public void onAnimationEnd(Animation animation) {
             if (animation == mHeaderOutAnimation) {
                 mHeaderView.setVisibility(View.GONE);
+                mFooterView.setVisibility(View.GONE);
             }
         }
 
@@ -557,8 +796,8 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
      * Default Header Transformer.
      */
     public static class DefaultHeaderTransformer extends HeaderTransformer {
-        private TextView mHeaderTextView;
-        private ProgressBar mHeaderProgressBar;
+        public TextView mHeaderTextView;
+        public ProgressBar mHeaderProgressBar;
         private View mHeaderView;
         @Override
         public void onViewCreated(View headerView) {
@@ -569,6 +808,16 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
             // Call onReset to make sure that the View is consistent
             onReset();
         }
+
+		@Override
+		public void onHide() {
+            if (mHeaderProgressBar != null) {
+            	mHeaderProgressBar.setVisibility(View.GONE);
+            }
+            if (mHeaderTextView != null) {
+                mHeaderTextView.setVisibility(View.GONE);
+            }
+		}
 
         @Override
         public void onReset() {
@@ -586,7 +835,8 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
 
 					public void onFinish() {
 						mHeaderProgressBar.setProgress(0);
-						mHeaderProgressBar.setVisibility(View.GONE);
+						//mHeaderProgressBar.setVisibility(View.GONE);
+						onHide();
 					}
 				}.start();
                 mHeaderProgressBar.setIndeterminate(false);
@@ -594,13 +844,16 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
 
             // Reset Text View
             if (mHeaderTextView != null) {
-                mHeaderTextView.setVisibility(View.VISIBLE);
+                //mHeaderTextView.setVisibility(View.GONE);
                 mHeaderTextView.setText(R.string.pull_to_refresh_pull_label);
             }
         }
 
         @Override
         public void onPulled(float percentagePulled) {
+            if (mHeaderTextView != null) {
+                mHeaderTextView.setVisibility(View.VISIBLE);
+            }
             if (mHeaderProgressBar != null) {
                 mHeaderProgressBar.setVisibility(View.VISIBLE);
                 mHeaderProgressBar
@@ -629,7 +882,7 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
 					: R.drawable.progress_horizontal_center_light;
 			final int mIndeterminateDrawable = R.drawable.progress_indeterminate_horizontal;
 			if (mHeaderTextView != null) {
-                mHeaderTextView.setHeight(PullToRefreshAttacher.getActionBarHeight(activity));
+                mHeaderTextView.setHeight(PullToRefreshListAttacher.getActionBarHeight(activity));
                 mHeaderTextView.setBackgroundColor(mTextBackgroundColor);
                 mHeaderTextView.setTextColor(mTextColor);
             }
@@ -640,64 +893,7 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
             }
 		}
 
-		@Override
-		public void onHide() {
-			// TODO Auto-generated method stub
-			
-		}
     }
-
-    /**
-     * This class allows us to insert a layer in between the system decor view and the actual decor.
-     * (e.g. Action Bar views). This is needed so we can receive a call to fitSystemWindows(Rect)
-     * so we can adjust the header view to fit the system windows too.
-     */
-    final static class DecorChildLayout extends FrameLayout {
-        private ViewGroup mHeaderViewWrapper;
-
-        DecorChildLayout(Context context, ViewGroup systemDecorView, View headerView) {
-            super(context);
-
-            // Move all children from decor view to here
-            for (int i = 0, z = systemDecorView.getChildCount() ; i < z ; i++) {
-                View child = systemDecorView.getChildAt(i);
-                systemDecorView.removeView(child);
-                addView(child);
-            }
-
-            /**
-             * Wrap the Header View in a FrameLayout and add it to this view. It is wrapped
-             * so any inset changes do not affect the actual header view.
-             */
-            mHeaderViewWrapper = new FrameLayout(context);
-            mHeaderViewWrapper.addView(headerView);
-            addView(mHeaderViewWrapper, ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT);
-        }
-
-        @Override
-        protected boolean fitSystemWindows(Rect insets) {
-            if (DEBUG) {
-                Log.d(LOG_TAG, "fitSystemWindows: " + insets.toString());
-            }
-
-            // Adjust the Header View's padding to take the insets into account
-            mHeaderViewWrapper.setPadding(insets.left, insets.top, insets.right, insets.bottom);
-
-            // Call return super so that the rest of the
-            return super.fitSystemWindows(insets);
-        }
-    }
-    
-
-	public int getStatusBarHeight(Activity activity) {
-		int result = 0;
-		final int resourceId = activity.getResources().getIdentifier("android:dimen/status_bar_height", null, null);
-		if (resourceId > 0) {
-			result = activity.getResources().getDimensionPixelSize(resourceId);
-		}
-		return result;
-	}
 	
 	private static int getActionBarHeight(Activity activity) {
 		int result = 0;

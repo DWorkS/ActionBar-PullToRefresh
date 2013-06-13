@@ -24,7 +24,8 @@ import android.widget.ArrayAdapter;
 import android.widget.ListAdapter;
 import android.widget.ListView;
 
-import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher;
+import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshListAttacher.ListOptions;
+import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshListAttacher;
 
 /**
  * This sample shows how to use ActionBar-PullToRefresh with a
@@ -32,16 +33,37 @@ import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher;
  * {@link PullToRefreshAttacher} to the view.
  */
 public class ListViewActivity extends ListActivity
-        implements PullToRefreshAttacher.OnRefreshListener {
+        implements PullToRefreshListAttacher.OnRefreshListener {
 
-    private static String[] ITEMS = {"Abbaye de Belloc", "Abbaye du Mont des Cats", "Abertam",
-            "Abondance", "Ackawi", "Acorn", "Adelost", "Affidelice au Chablis", "Afuega'l Pitu",
-            "Airag", "Airedale", "Aisy Cendre", "Allgauer Emmentaler", "Abbaye de Belloc",
-            "Abbaye du Mont des Cats", "Abertam", "Abondance", "Ackawi", "Acorn", "Adelost",
-            "Affidelice au Chablis", "Afuega'l Pitu", "Airag", "Airedale", "Aisy Cendre",
+    private static String[] ITEMS = {
+    		"Abbaye de Belloc",
+    		"Abbaye du Mont des Cats",
+    		"Abertam",
+            "Abondance",
+            "Ackawi",
+            "Acorn",
+            "Adelost",
+            "Affidelice au Chablis",
+            "Afuega'l Pitu",
+            "Airag",
+            "Airedale",
+            "Aisy Cendre",
+            "Allgauer Emmentaler",
+            "Abbaye de Belloc",
+            "Abbaye du Mont des Cats",
+            "Abertam",
+            "Abondance",
+            "Ackawi",
+            "Acorn",
+            "Adelost",
+            "Affidelice au Chablis", 
+            "Afuega'l Pitu",
+            "Airag",
+            "Airedale",
+            "Aisy Cendre",
             "Allgauer Emmentaler"};
 
-    private PullToRefreshAttacher mPullToRefreshAttacher;
+    private PullToRefreshListAttacher mPullToRefreshAttacher;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -53,16 +75,21 @@ public class ListViewActivity extends ListActivity
         ListView listView = getListView();
         ListAdapter adapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1,
                 ITEMS);
-        listView.setAdapter(adapter);
+
 
         /**
          * Here we create a PullToRefreshAttacher manually without an Options instance.
          * PullToRefreshAttacher will manually create one using default values.
          */
-        mPullToRefreshAttacher = new PullToRefreshAttacher(this);
+        
+        ListOptions options = new ListOptions();
+       // options.headerLayout = R.layout.default_footer;
+        options.headerTheme = 1;
+        mPullToRefreshAttacher = new PullToRefreshListAttacher(this, options);
 
         // Set the Refreshable View to be the ListView and the refresh listener to be this.
         mPullToRefreshAttacher.setRefreshableView(listView, this);
+        listView.setAdapter(adapter);
     }
 
     @Override

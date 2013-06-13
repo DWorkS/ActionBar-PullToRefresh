@@ -16,6 +16,7 @@
 
 package uk.co.senab.actionbarpulltorefresh.library.delegate;
 
+import android.util.Log;
 import android.view.View;
 import android.widget.AbsListView;
 
@@ -23,7 +24,7 @@ import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher;
 
 public class AbsListViewDelegate extends PullToRefreshAttacher.ViewDelegate {
 
-    public static final Class SUPPORTED_VIEW_CLASS = AbsListView.class;
+    public static final Class<AbsListView> SUPPORTED_VIEW_CLASS = AbsListView.class;
 
     @Override
     public boolean isScrolledToTop(View view) {
@@ -44,7 +45,8 @@ public class AbsListViewDelegate extends PullToRefreshAttacher.ViewDelegate {
             return true;
         } else if (absListView.getLastVisiblePosition() == absListView.getAdapter().getCount() - 1) {
             final View lastVisibleChild = absListView.getChildAt(absListView.getCount() -1);
-            return lastVisibleChild != null && lastVisibleChild.getBottom() <= absListView.getHeight();
+            return true;
+            //return lastVisibleChild != null && lastVisibleChild.getBottom() <= absListView.getHeight();
         }
 		return false;
 	}
