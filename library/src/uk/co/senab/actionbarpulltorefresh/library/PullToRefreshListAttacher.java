@@ -170,7 +170,7 @@ public final class PullToRefreshListAttacher implements View.OnTouchListener {
      * @param view - View which will be used to initiate refresh requests.
      * @param refreshListener - Listener to be invoked when a refresh is started.
      */
-    public void setRefreshableView(View view, MODE mode) {
+    public void setRefreshableView(ListView view, MODE mode) {
         setRefreshableView(view, mode, null);
     }
     
@@ -190,15 +190,29 @@ public final class PullToRefreshListAttacher implements View.OnTouchListener {
      * @param viewDelegate - delegate which knows how to handle <code>view</code>.
      * @param refreshListener - Listener to be invoked when a refresh is started.
      */
-    public void setRefreshableView(View view, MODE mode, ViewDelegate viewDelegate) {
+    public void setRefreshableView(ListView view, MODE mode, ViewDelegate viewDelegate) {
     	
     	mMode = mode;
-    	
-    	if(view instanceof ListView){
-    		list = (ListView) view;
+		list = (ListView) view;
+		
+    	switch (mMode) {
+		case Header:
+			list.addHeaderView(mHeaderView);
+			break;
+			
+		case Footer:
+			list.addFooterView(mFooterView);
+			break;
+
+		case Both:
     		list.addHeaderView(mHeaderView);
     		list.addFooterView(mFooterView);
-    	}
+			break;
+
+		default:
+			break;
+		}
+    	
         // If we already have a refreshable view, reset it and our state
         if (mRefreshableView != null) {
             mRefreshableView.setOnTouchListener(null);
@@ -314,11 +328,20 @@ public final class PullToRefreshListAttacher implements View.OnTouchListener {
         switch (event.getAction()) {
             case MotionEvent.ACTION_MOVE: {
                 // If we're already refreshing or not handling the event, ignore it
-                if (mIsRefreshing || !mIsHandlingTouchEvent) {
+                if (mIsRefreshing){
                     return false;
                 }
-
+                
                 final float y = event.getY();
+                if(!mIsHandlingTouchEvent) {
+                	if(canRefresh(true) && (mCurrentMode ==  MODE.Header || mCurrentMode ==  MODE.Footer)){
+                		mIsHandlingTouchEvent = true;
+                		mInitialMotionY = y;
+                	}
+                	else{
+                		return false;
+                	}
+                }
 
                 if(null != mCurrentMode){
                 	switch (mCurrentMode) {
@@ -380,13 +403,13 @@ public final class PullToRefreshListAttacher implements View.OnTouchListener {
             case MotionEvent.ACTION_DOWN: {
                 // If we're already refreshing, ignore
                 if (canRefresh(true)) {
-                	if(mViewDelegate.isScrolledToTop(mRefreshableView)){
+                	if(hasHeaderMode() && mViewDelegate.isScrolledToTop(mRefreshableView)){
                         mIsHandlingTouchEvent = true;
                         mCurrentMode = MODE.Header;
                         mInitialMotionY = event.getY();
                         Log.i("foot", "down header");
                 	}
-                	else if(mViewDelegate.isScrolledToBottom(mRefreshableView)){
+                	else if(hasFooterMode() && mViewDelegate.isScrolledToBottom(mRefreshableView)){
                         mIsHandlingTouchEvent = true;
                         mCurrentMode = MODE.Footer;
                         mInitialMotionY = event.getY();
@@ -406,6 +429,14 @@ public final class PullToRefreshListAttacher implements View.OnTouchListener {
 
         // Always return false as we only want to observe events
         return false;
+    }
+    
+    private boolean hasHeaderMode(){
+    	return mMode == MODE.Header || mMode == MODE.Both;
+    }
+    
+    private boolean hasFooterMode(){
+    	return mMode == MODE.Footer || mMode == MODE.Both;
     }
 
     private void resetTouch() {
@@ -442,23 +473,6 @@ public final class PullToRefreshListAttacher implements View.OnTouchListener {
         mFooterView.setVisibility(View.VISIBLE);
     }
 
-/*    void onPullStarted() {
-        if (DEBUG) {
-            Log.d(LOG_TAG, "onPullStarted");
-        }
-        // Show Header
-        if (mHeaderInAnimation != null) {
-            mHeaderView.startAnimation(mHeaderInAnimation);
-        }
-        mHeaderView.setVisibility(View.VISIBLE);
-        
-        // Show Header
-        if (mHeaderInAnimation != null) {
-            mFooterView.startAnimation(mHeaderInAnimation);
-        }
-        mFooterView.setVisibility(View.VISIBLE);
-    }*/
-    
     void onPullHeader(float y) {
         if (DEBUG) {
             Log.d(LOG_TAG, "onPull");
@@ -486,21 +500,6 @@ public final class PullToRefreshListAttacher implements View.OnTouchListener {
             setRefreshingFooterInt(true, true);
         }
     }
-
-    /*void onPull(float y) {
-        if (DEBUG) {
-            Log.d(LOG_TAG, "onPull");
-        }
-
-        final float pxScrollForRefresh = mRefreshableView.getHeight() * mRefreshScrollDistance;
-        final float scrollLength = y - mInitialMotionY;
-
-        if (scrollLength < pxScrollForRefresh) {
-            mHeaderTransformer.onPulled(scrollLength / pxScrollForRefresh);
-        } else {
-            setRefreshingInt(true, true);
-        }
-    }*/
     
     void onPullHeaderEnded() {
         if (DEBUG) {
@@ -520,28 +519,21 @@ public final class PullToRefreshListAttacher implements View.OnTouchListener {
         }
     }
 
-    /*void onPullEnded() {
-        if (DEBUG) {
-            Log.d(LOG_TAG, "onPullEnded");
-        }
-        if (!mIsRefreshing) {
-            reset(true);
-        }
-    }*/
-    
     private void setRefreshingHeaderInt(boolean refreshing, boolean fromTouch) {
         if (DEBUG) {
             Log.d(LOG_TAG, "setRefreshingInt: " + refreshing);
         }
-        // Check to see if we need to do anything
-        if (mIsRefreshing == refreshing) {
-            return;
-        }
+        if(hasHeaderMode()){
+            // Check to see if we need to do anything
+            if (mIsRefreshing == refreshing) {
+                return;
+            }
 
-        if (refreshing && canRefresh(fromTouch)) {
-            startRefreshHeader(fromTouch);
-        } else {
-            resetHeader(fromTouch);
+            if (refreshing && canRefresh(fromTouch)) {
+                startRefreshHeader(fromTouch);
+            } else {
+                resetHeader(fromTouch);
+            }	
         }
     }
     
@@ -549,33 +541,19 @@ public final class PullToRefreshListAttacher implements View.OnTouchListener {
         if (DEBUG) {
             Log.d(LOG_TAG, "setRefreshingInt: " + refreshing);
         }
-        // Check to see if we need to do anything
-        if (mIsRefreshing == refreshing) {
-            return;
-        }
+        if(hasFooterMode()){
+            // Check to see if we need to do anything
+            if (mIsRefreshing == refreshing) {
+                return;
+            }
 
-        if (refreshing && canRefresh(fromTouch)) {
-            startRefreshFooter(fromTouch);
-        } else {
-            resetFooter(fromTouch);
+            if (refreshing && canRefresh(fromTouch)) {
+                startRefreshFooter(fromTouch);
+            } else {
+                resetFooter(fromTouch);
+            }	
         }
     }
-
-    /*private void setRefreshingInt(boolean refreshing, boolean fromTouch) {
-        if (DEBUG) {
-            Log.d(LOG_TAG, "setRefreshingInt: " + refreshing);
-        }
-        // Check to see if we need to do anything
-        if (mIsRefreshing == refreshing) {
-            return;
-        }
-
-        if (refreshing && canRefresh(fromTouch)) {
-            startRefresh(fromTouch);
-        } else {
-            reset(fromTouch);
-        }
-    }*/
 
     private boolean canRefresh(boolean fromTouch) {
         return !mIsRefreshing && (!fromTouch || mHeaderRefreshListener != null || mFooterRefreshListener != null);
@@ -616,23 +594,6 @@ public final class PullToRefreshListAttacher implements View.OnTouchListener {
             }
         }
     }
-
-    /*private void reset(boolean fromTouch) {
-        // Update isRefreshing state
-        mIsRefreshing = false;
-
-        if (mHeaderView.getVisibility() != View.GONE) {
-            // Hide Header
-            if (mHeaderOutAnimation != null) {
-                mHeaderView.startAnimation(mHeaderOutAnimation);
-                // HeaderTransformer.onReset() is called once the animation has finished
-            } else {
-                // As we're not animating, hide the header + call the header transformer now
-                mHeaderView.setVisibility(View.GONE);
-                mHeaderTransformer.onReset();
-            }
-        }
-    }*/
     
     private void startRefreshHeader(boolean fromTouch) {
         // Update isRefreshing state
@@ -646,8 +607,10 @@ public final class PullToRefreshListAttacher implements View.OnTouchListener {
         mHeaderTransformer.onRefreshStarted();
 
         // Make sure header is visible.
-        // TODO Use header in anim
         if (mHeaderView.getVisibility() != View.VISIBLE) {
+        	if(null != mHeaderInAnimation){
+        		mHeaderView.startAnimation(mHeaderInAnimation);
+        	}
             mHeaderView.setVisibility(View.VISIBLE);
         }
     }
@@ -664,8 +627,10 @@ public final class PullToRefreshListAttacher implements View.OnTouchListener {
         mFooterTransformer.onRefreshStarted();
 
         // Make sure header is visible.
-        // TODO Use header in anim
         if (mFooterView.getVisibility() != View.VISIBLE) {
+        	if(null != mFooterInAnimation){
+        		mFooterView.startAnimation(mFooterInAnimation);
+        	}
             mFooterView.setVisibility(View.VISIBLE);
         }
     }

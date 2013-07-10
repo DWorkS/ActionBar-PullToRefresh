@@ -255,11 +255,20 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
         switch (event.getAction()) {
             case MotionEvent.ACTION_MOVE: {
                 // If we're already refreshing or not handling the event, ignore it
-                if (mIsRefreshing || !mIsHandlingTouchEvent) {
+                if (mIsRefreshing){
                     return false;
                 }
-
+                
                 final float y = event.getY();
+                if(!mIsHandlingTouchEvent) {
+                	if(canRefresh(true) && mViewDelegate.isScrolledToTop(mRefreshableView)){
+                		mIsHandlingTouchEvent = true;
+                		mInitialMotionY = y;
+                	}
+                	else{
+                		return false;
+                	}
+                }
 
                 // We're not currently being dragged so check to see if the user has scrolled enough
                 if (!mIsBeingDragged && (y - mInitialMotionY) > mTouchSlop) {
@@ -401,8 +410,10 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
         mHeaderTransformer.onRefreshStarted();
 
         // Make sure header is visible.
-        // TODO Use header in anim
         if (mHeaderView.getVisibility() != View.VISIBLE) {
+        	if (mHeaderInAnimation != null) {
+				mHeaderView.startAnimation(mHeaderInAnimation);
+			}
             mHeaderView.setVisibility(View.VISIBLE);
         }
     }
@@ -626,6 +637,7 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
                 mHeaderTextView.setText(R.string.pull_to_refresh_refreshing_label);
             }
             if (mHeaderProgressBar != null) {
+            	mHeaderProgressBar.setVisibility(View.VISIBLE);
                 mHeaderProgressBar.setIndeterminate(true);
             }
         }
@@ -700,16 +712,6 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
             return super.fitSystemWindows(insets);
         }
     }
-    
-
-	public int getStatusBarHeight(Activity activity) {
-		int result = 0;
-		final int resourceId = activity.getResources().getIdentifier("android:dimen/status_bar_height", null, null);
-		if (resourceId > 0) {
-			result = activity.getResources().getDimensionPixelSize(resourceId);
-		}
-		return result;
-	}
 	
 	private static int getActionBarHeight(Activity activity) {
 		int result = 0;
@@ -723,5 +725,4 @@ public final class PullToRefreshAttacher implements View.OnTouchListener {
 		}
 		return result;
 	}
-
 }

@@ -86,12 +86,13 @@ public class ListViewHeaderFooterActivity extends ListActivity
         
         ListOptions options = new ListOptions();
        // options.headerLayout = R.layout.default_footer;
-        options.headerTheme = 1;
-        options.footerTheme = 1;
+        //options.headerTheme = 1;
+        //options.footerTheme = 1;
         mPullToRefreshAttacher = new PullToRefreshListAttacher(this, options);
 
         // Set the Refreshable View to be the ListView and the refresh listener to be this.
         mPullToRefreshAttacher.setRefreshableView(listView, MODE.Both);
+        //mPullToRefreshAttacher.setHeaderRefreshing(true);
         mPullToRefreshAttacher.setHeaderRefreshLister(this);
         mPullToRefreshAttacher.setFooterRefreshLister(this);
         listView.setAdapter(adapter);

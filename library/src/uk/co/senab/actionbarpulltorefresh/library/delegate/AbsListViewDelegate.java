@@ -16,11 +16,9 @@
 
 package uk.co.senab.actionbarpulltorefresh.library.delegate;
 
-import android.util.Log;
+import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher;
 import android.view.View;
 import android.widget.AbsListView;
-
-import uk.co.senab.actionbarpulltorefresh.library.PullToRefreshAttacher;
 
 public class AbsListViewDelegate extends PullToRefreshAttacher.ViewDelegate {
 
